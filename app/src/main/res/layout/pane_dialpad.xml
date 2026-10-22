@@ -1,9 +1,27 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:paddingTop="4dp">
+
+    <TextView
+        android:id="@+id/btnToggleKeypad"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end|center_vertical"
+        android:minHeight="40dp"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="8dp"
+        android:text="Hide keypad"
+        android:textColor="@color/app_text_secondary"
+        android:textSize="14sp"
+        android:clickable="true"
+        android:focusable="true"
+        android:contentDescription="Hide or show dialpad" />
 
     <LinearLayout
         android:id="@+id/recentSection"
