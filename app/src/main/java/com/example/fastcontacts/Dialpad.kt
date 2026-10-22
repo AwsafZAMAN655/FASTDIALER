@@ -1,11 +1,9 @@
 
 package com.example.fastcontacts
 
-import android.view.LayoutInflater
 import android.os.Handler
 import android.os.Looper
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.widget.GridLayout
@@ -14,6 +12,8 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class DialpadController(
     private val activity: AppCompatActivity,
@@ -21,7 +21,24 @@ class DialpadController(
     openContact: (Contact) -> Unit
 ) {
     private val number = StringBuilder()
-    private val display: TextView = root.findViewById(R.id.dialDisplay)
+
+    private val display: TextView =
+        root.findViewById(R.id.dialDisplay)
+
+    private val recentSection: View =
+        root.findViewById(R.id.recentSection)
+
+    private val matchesTitle: View =
+        root.findViewById(R.id.matchesTitle)
+
+    private val keypad: GridLayout =
+        root.findViewById(R.id.keypad)
+
+    private val toggleKeypad: TextView =
+        root.findViewById(R.id.btnToggleKeypad)
+
+    private val dialMatches: RecyclerView =
+        root.findViewById(R.id.dialMatches)
 
     @Volatile
     private var contacts: List<Contact> = emptyList()
@@ -31,30 +48,23 @@ class DialpadController(
     private val searchGeneration = AtomicInteger(0)
     private var pendingSearch: Runnable? = null
 
-    private val recentSection: View = root.findViewById(R.id.recentSection)
-    private val matchesTitle: View = root.findViewById(R.id.matchesTitle)
-
     private val adapter = ContactAdapter(
         onClick = openContact,
-        onCallClick = { c ->
-            Actions.withNumber(activity, c) { n ->
+        onCallClick = { contact ->
+            Actions.withNumber(activity, contact) { n ->
                 Actions.call(activity, n)
             }
         },
-        onSmsClick = { c ->
-            Actions.withNumber(activity, c) { n ->
+        onSmsClick = { contact ->
+            Actions.withNumber(activity, contact) { n ->
                 Actions.sms(activity, n)
             }
         }
     )
 
     init {
-        val rv = root.findViewById<RecyclerView>(R.id.dialMatches)
-        rv.layoutManager = LinearLayoutManager(activity)
-        rv.adapter = adapter
-
-        val keypad = root.findViewById<GridLayout>(R.id.keypad)
-        val toggleKeypad = root.findViewById<TextView>(R.id.btnToggleKeypad)
+        dialMatches.layoutManager = LinearLayoutManager(activity)
+        dialMatches.adapter = adapter
 
         val keys = listOf(
             "1" to "",
@@ -72,32 +82,31 @@ class DialpadController(
         )
 
         for ((digit, letters) in keys) {
-            val v = LayoutInflater.from(activity)
+            val keyView = LayoutInflater.from(activity)
                 .inflate(R.layout.view_dial_key, keypad, false)
 
-            v.findViewById<TextView>(R.id.keyDigit).text = digit
-            v.findViewById<TextView>(R.id.keyLetters).text = letters
+            keyView.findViewById<TextView>(R.id.keyDigit).text = digit
+            keyView.findViewById<TextView>(R.id.keyLetters).text = letters
 
-            val lp = GridLayout.LayoutParams(
+            val params = GridLayout.LayoutParams(
                 GridLayout.spec(GridLayout.UNDEFINED),
                 GridLayout.spec(GridLayout.UNDEFINED, 1f)
             )
 
-            lp.width = 0
-            lp.height = Ui.dp(activity, 58)
-
-            lp.setMargins(
+            params.width = 0
+            params.height = Ui.dp(activity, 58)
+            params.setMargins(
                 Ui.dp(activity, 6),
                 Ui.dp(activity, 4),
                 Ui.dp(activity, 6),
                 Ui.dp(activity, 4)
             )
 
-            v.layoutParams = lp
-            v.contentDescription = digit
+            keyView.layoutParams = params
+            keyView.contentDescription = digit
 
-            v.setOnTouchListener { view, ev ->
-                when (ev.actionMasked) {
+            keyView.setOnTouchListener { view, event ->
+                when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         view.animate()
                             .scaleX(0.92f)
@@ -118,40 +127,48 @@ class DialpadController(
                 false
             }
 
-            v.setOnClickListener {
-                Ui.tap(v)
+            keyView.setOnClickListener {
+                Ui.tap(keyView)
                 number.append(digit)
                 refresh()
             }
 
             if (digit == "0") {
-                v.setOnLongClickListener {
+                keyView.setOnLongClickListener {
                     number.append("+")
                     refresh()
                     true
                 }
             }
 
-            keypad.addView(v)
+            keypad.addView(keyView)
         }
 
-        // Hide / Show keypad toggle
         toggleKeypad.setOnClickListener {
             val isVisible = keypad.visibility == View.VISIBLE
 
-            keypad.visibility =
-                if (isVisible) View.GONE else View.VISIBLE
+            keypad.visibility = if (isVisible) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
 
-            toggleKeypad.text =
-                if (isVisible) "Show keypad" else "Hide keypad"
+            toggleKeypad.text = if (isVisible) {
+                "Show keypad"
+            } else {
+                "Hide keypad"
+            }
 
-            toggleKeypad.contentDescription =
-                if (isVisible) "Show dialpad" else "Hide dialpad"
+            toggleKeypad.contentDescription = if (isVisible) {
+                "Show dialpad"
+            } else {
+                "Hide dialpad"
+            }
 
+            dialMatches.requestLayout()
             recentSection.requestLayout()
         }
 
-        // Call entered number
         root.findViewById<ImageButton>(R.id.btnDialCall)
             .setOnClickListener {
                 if (number.isNotEmpty()) {
@@ -159,7 +176,6 @@ class DialpadController(
                 }
             }
 
-        // Add entered number to contacts
         root.findViewById<ImageButton>(R.id.btnAddContact)
             .setOnClickListener {
                 if (number.isNotEmpty()) {
@@ -169,18 +185,17 @@ class DialpadController(
                 }
             }
 
-        // Delete last digit
-        val back = root.findViewById<ImageButton>(R.id.btnBackspace)
+        val backspace =
+            root.findViewById<ImageButton>(R.id.btnBackspace)
 
-        back.setOnClickListener {
+        backspace.setOnClickListener {
             if (number.isNotEmpty()) {
                 number.deleteCharAt(number.length - 1)
             }
             refresh()
         }
 
-        // Long-press to clear the number
-        back.setOnLongClickListener {
+        backspace.setOnLongClickListener {
             number.setLength(0)
             refresh()
             true
@@ -207,18 +222,22 @@ class DialpadController(
 
         val searching = query.isNotEmpty()
 
-        recentSection.visibility =
-            if (searching) View.GONE else View.VISIBLE
-
-        matchesTitle.visibility =
-            if (searching) View.VISIBLE else View.GONE
-
         if (!searching) {
+            recentSection.visibility = View.VISIBLE
+            matchesTitle.visibility = View.GONE
+            dialMatches.visibility = View.GONE
+
             pendingSearch?.let(handler::removeCallbacks)
             searchGeneration.incrementAndGet()
             adapter.submit(emptyList())
             return
         }
+
+        // Keep the results area as flexible space above the keypad.
+        // This prevents the keypad from jumping upward when typing.
+        recentSection.visibility = View.GONE
+        matchesTitle.visibility = View.VISIBLE
+        dialMatches.visibility = View.VISIBLE
 
         pendingSearch?.let(handler::removeCallbacks)
 
